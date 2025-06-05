@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Viewer</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        .status.active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.inactive {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .coordinates {
+            margin-top: 10px;
+            font-family: monospace;
+        }
+
+        .tracker-link {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .tracker-link a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .tracker-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info-panel">
+        <h2>Location Viewer</h2>
+        <div id="status" class="status inactive">Status: Waiting for connection</div>
+        <div class="coordinates">
+            <p>Latitude: <span id="latitude">-</span></p>
+            <p>Longitude: <span id="longitude">-</span></p>
+            <p>Accuracy: <span id="accuracy">-</span> meters</p>
+            <p>Last Update: <span id="timestamp">-</span></p>
+        </div>
+    </div>
+    <div class="tracker-link">
+        <a href="index.html" target="_blank">Open Tracker in New Tab</a>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([0, 0], 2);
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let marker = null;
+        let ws = null;
+
+        // Connect to WebSocket server
+        function connectWebSocket() {
+            // Use the Glitch WebSocket server
+            ws = new WebSocket('wss://your-glitch-app-name.glitch.me');
+
+            ws.onopen = () => {
+                console.log('Connected to WebSocket server');
+                document.getElementById('status').textContent = 'Status: Connected';
+                document.getElementById('status').className = 'status active';
+            };
+
+            ws.onclose = () => {
+                console.log('Disconnected from WebSocket server');
+                document.getElementById('status').textContent = 'Status: Disconnected';
+                document.getElementById('status').className = 'status inactive';
+                // Try to reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'location') {
+                        updateLocation(data);
+                    }
+                } catch (error) {
+                    console.error('Error parsing message:', error);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Function to update location
+        function updateLocation(data) {
+            const { latitude, longitude, accuracy, timestamp } = data;
+            
+            // Update coordinates display
+            document.getElementById('latitude').textContent = latitude.toFixed(6);
+            document.getElementById('longitude').textContent = longitude.toFixed(6);
+            document.getElementById('accuracy').textContent = accuracy.toFixed(1);
+            document.getElementById('timestamp').textContent = new Date(timestamp).toLocaleString();
+
+            // Update map
+            if (marker) {
+                marker.setLatLng([latitude, longitude]);
+            } else {
+                marker = L.marker([latitude, longitude]).addTo(map);
+            }
+            
+            map.setView([latitude, longitude], 15);
+        }
+
+        // Connect to WebSocket when page loads
+        connectWebSocket();
+    </script>
+</body>
+</html> 
